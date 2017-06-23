@@ -30,6 +30,7 @@ import com.googlecode.genericdao.search.ISearch;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.InitializingBean;
+import javax.naming.directory.SearchControls;
 
 /**
  * Base DAO Implementation using LDAP services.
@@ -204,14 +205,25 @@ public abstract class LDAPBaseDAO<T extends RestrictedGenericDAO<R>, R>
         }
     }
 
-    private class LDAPLoader extends CacheLoader<String, List<R>>
-    {
+    private class LDAPLoader extends CacheLoader<String, List<R>> {
+
+        private String[] getAttributes() {
+            String[] attrs = null;
+            if(attributesMapper instanceof GSUserAttributesMapper) {
+                int size = ((GSUserAttributesMapper)attributesMapper).getMap().size();
+                attrs = ((GSUserAttributesMapper)attributesMapper).getMap().values().toArray(new String[size]);
+            }
+            return attrs;
+        }
+
         @Override
         public List<R> load(String filter) throws Exception {
             if(LOGGER.isInfoEnabled())
                 LOGGER.info("Loading " + filter);
 
-            return ldapTemplate.search(searchBase, filter, attributesMapper);
+            String[] attrs = getAttributes();
+
+            return ldapTemplate.search(searchBase, filter, SearchControls.SUBTREE_SCOPE, attrs, attributesMapper);
         }
 
         @Override
@@ -221,7 +233,11 @@ public abstract class LDAPBaseDAO<T extends RestrictedGenericDAO<R>, R>
                 LOGGER.info("RELoading " + filter);
 
             // this is a sync implementation
-            List<R> ldapObjs = ldapTemplate.search(searchBase, filter, attributesMapper);
+            String[] attrs = getAttributes();
+
+            List<R> ldapObjs =  ldapTemplate.search(searchBase, filter, SearchControls.SUBTREE_SCOPE, attrs, attributesMapper);
+
+            //List<R> ldapObjs = ldapTemplate.search(searchBase, filter, attributesMapper);
             return Futures.immediateFuture(ldapObjs);
         }
     }
